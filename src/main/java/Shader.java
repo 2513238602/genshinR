@@ -4,10 +4,10 @@ import java.nio.FloatBuffer;
 
 import static org.lwjgl.opengl.GL33C.*;
 
-public class ShaderProgram {
+public class Shader implements AutoCloseable {
     private final int programId;
 
-    public ShaderProgram(String vertexSrc, String fragmentSrc) {
+    public Shader(String vertexSrc, String fragmentSrc) {
         int vs = compile(GL_VERTEX_SHADER, vertexSrc);
         int fs = compile(GL_FRAGMENT_SHADER, fragmentSrc);
         programId = glCreateProgram();
@@ -35,35 +35,43 @@ public class ShaderProgram {
         return id;
     }
 
-    public void use() { glUseProgram(programId); }
-    public static void unbind() { glUseProgram(0); }
-    public void dispose() { glDeleteProgram(programId); }
-
-    // -------- Uniform helpers --------
-    private int getLocation(String name) {
-        int loc = glGetUniformLocation(programId, name);
-        if (loc < 0) throw new IllegalArgumentException("Uniform not found: " + name);
-        return loc;
+    public void use() {
+        glUseProgram(programId);
     }
 
-    // float
-    public void set1f(String name, float v) { glUniform1f(getLocation(name), v); }
-    public void set2f(String name, float x, float y) { glUniform2f(getLocation(name), x, y); }
-    public void set3f(String name, float x, float y, float z) { glUniform3f(getLocation(name), x, y, z); }
-    public void set4f(String name, float x, float y, float z, float w) { glUniform4f(getLocation(name), x, y, z, w); }
+    public static void unbind() {
+        glUseProgram(0);
+    }
 
-    // int / bool / uint
-    public void set1i(String name, int v) { glUniform1i(getLocation(name), v); }           // sampler2D / int / bool(0/1)
-    public void set1ui(String name, int v) { glUniform1ui(getLocation(name), v); }
-    public void setBool(String name, boolean b) { glUniform1i(getLocation(name), b ? 1 : 0); }
+    public void set1i(String name, int v) {
+        glUniform1i(getLocation(name), v);
+    }
 
-    // mat4 (column-major float[16])
+    public void set3f(String name, float x, float y, float z) {
+        glUniform3f(getLocation(name), x, y, z);
+    }
+
     public void setMat4(String name, float[] m16) {
-        if (m16.length != 16) throw new IllegalArgumentException("mat4 requires 16 floats");
+        if (m16.length != 16) {
+            throw new IllegalArgumentException("mat4 requires 16 floats");
+        }
         try (MemoryStack stack = MemoryStack.stackPush()) {
             FloatBuffer fb = stack.mallocFloat(16);
             fb.put(m16).flip();
             glUniformMatrix4fv(getLocation(name), false, fb);
         }
+    }
+
+    private int getLocation(String name) {
+        int loc = glGetUniformLocation(programId, name);
+        if (loc < 0) {
+            throw new IllegalArgumentException("Uniform not found: " + name);
+        }
+        return loc;
+    }
+
+    @Override
+    public void close() {
+        glDeleteProgram(programId);
     }
 }
